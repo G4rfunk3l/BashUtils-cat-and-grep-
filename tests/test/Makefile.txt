@@ -1,0 +1,70 @@
+CC=gcc
+FLAGS=-std=c11 -Wall -Werror -Wextra -D_GNU_SOURCE
+PROJECT_NAME=bash
+LIB_NAME=$(PROJECT_NAME).a
+CLEAN=rm -rf
+
+ifeq ($(shell uname), Linux)
+	CHECK_LIBS=-lcheck -lm -lpthread -lsubunit -lrt
+	LEAKS=valgrind
+
+else
+    CHECK_LIBS=-lcheck -lm -lpthread
+	LEAKS=leaks -atExit --
+endif
+
+# FOLDERS
+SRC_DIR=.
+CAT_DIR=$(SRC_DIR)/cat
+GREP_DIR=$(SRC_DIR)/grep
+COMMON_DIR=$(SRC_DIR)/common
+TEST_DIR=$(SRC_DIR)/../tests
+
+# SOURCES
+SOURCES=*.c
+HEADERS=*.h
+OBJ=*.o
+SH_SOURCES=*.sh
+TXT_SOURCES=*.txt*
+
+#GOALS_START
+all: clean $(PROJECT_NAME)
+
+$(PROJECT_NAME): my_cat my_grep
+
+my_cat:
+	$(CC) $(FLAGS) $(CAT_DIR)/$(SOURCES) -o $(SRC_DIR)/$@ -D_GNU_SOURCE
+
+my_grep:
+	$(CC) $(FLAGS) $(GREP_DIR)/$(SOURCES) -o $(SRC_DIR)/$@ -D_GNU_SOURCE
+
+
+rebuild: clean all
+
+# tests
+test: my_cat my_grep
+	bash $(TEST_DIR)/t_cat.sh $(TEST_DIR)/test $(CAT_DIR)
+	# bash $(TEST_DIR)/t_cat_GNU.sh $(TEST_DIR)/test $(CAT_DIR)
+	bash $(TEST_DIR)/t_grep.sh $(TEST_DIR)/test $(GREP_DIR)
+	cat log.txt
+	rm -rf log.txt
+
+
+# checks
+cppcheck:
+	cppcheck --std=c11 --enable=all --suppress=missingIncludeSystem $(CAT_DIR)/$(SOURCES) $(CAT_DIR)/$(HEADERS)  $(GREP_DIR)/$(SOURCES) $(GREP_DIR)/$(HEADERS) $(COMMON_DIR)/$(HEADERS)
+
+leaks: clean my_cat my_grep
+	echo "Hello World!" > tmp.txt
+	$(LEAKS) $(GREP_DIR)/my_grep Hello -io tmp.txt
+	$(LEAKS) $(CAT_DIR)/my_cat  -nv tmp.txt
+	rm -rf tmp.txt
+
+check: clean leaks cppcheck lint
+
+clean:
+	$(CLEAN) $(SRC_DIR)/$(TXT_SOURCES)
+	$(CLEAN) $(TEST_DIR)/$(TXT_SOURCES)
+	$(CLEAN) $(CAT_DIR)/my_cat $(CAT_DIR)/$(TXT_SOURCES)
+	$(CLEAN) $(GREP_DIR)/my_grep $(GREP_DIR)/$(TXT_SOURCES)
+
